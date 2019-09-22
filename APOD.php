@@ -1,98 +1,145 @@
 <?php
 
-/* ==============================
- * = Script téléchargement APOD =
- * ==============================
- * Supprime du répertoire les anciennes photos et télécharge celle manquantes depuis le site de l'APOD (Astronomical Pictures Of Day)
- */
+use CommandLine\Argument\Option\Flag;
+use CommandLine\Argument\Option\Value AS OptionValue;
+use CommandLine\Argument\Parser\IntegerParser;
+use CommandLine\Argument\Parser\StringParser;
+use CommandLine\Argument\Value\Value;
+use CommandLine\CommandLine;
 
-const PHOTO_ROOT = 'F:\\Images\\APOD\\';
+require_once __DIR__ . '/vendor/autoload.php';
+
 const URL_ROOT = 'https://apod.nasa.gov/apod/';
+const THUMBS_FILE = 'Thumbs.db';
 
-const NB_YEARS = 5;
-const NB_DAYS  = 3;
+const DESCRIPTION = <<<TXT
+APOD images downloader.
+Download multiple images from APOD (https://apod.nasa.gov/apod/) website.
 
-const EXCLUDED_FILES = array('.', '..', 'Thumbs.db');
+By default, download images of last X days (see options) and last Y years (for the current day)
+If "square" method is used, download pictures of last X days for EVERY Y last years. 
+TXT;
 
-function echo_p($msg, $nb_tab = 0) {
-    echo str_repeat("\t", $nb_tab).$msg."\n";
-}
-function die_p($msg, $nb_tab = 0) {
-    die(str_repeat("\t", $nb_tab).$msg."\n");
-}
+$cmd = new CommandLine('APODImages', DESCRIPTION, 'php APOD.php');
+$cmd->addDefaultArguments();
 
-function getFilename(DateTime $date) {
+$cmd->addOption(new Flag('force', false, 'Force re-download of files'));
+$cmd->addOption(new Flag('noCleanup', false, 'Skip cleanup of old files', 'no-cleanup'));
+$cmd->addOption(new Flag('square', false, 'Download with "square" method ?'));
+$cmd->addOption((new OptionValue('days', 'Number of days', new IntegerParser(0)))->setDefault(3));
+$cmd->addOption((new OptionValue('years', 'Number of years', new IntegerParser(0)))->setDefault(5));
+
+$cmd->addValue(new Value('path', 'Path of local directory for downloaded images', new StringParser()));
+
+$args = $cmd->parse();
+$cmd->treatDefaultArguments($args);
+
+function getFilename (DateTime $date) {
     return 'ap'.$date->format('ymd');
 }
 
-echo_p('===== '.(new DateTime())->format('d/m/Y H:i:s').' =====');
-
-if(!file_exists(PHOTO_ROOT) || ! is_dir(PHOTO_ROOT)) {
-    if(!mkdir(PHOTO_ROOT, 775, true))
-        die_p('Echec création répertoire des photos');
-}
-
-/*
- * Constitutions des noms de fichiers
- */
-echo_p('Génération des noms de fichiers');
-
 $date_ref = new DateTime();
-$names = array(
-    getFilename($date_ref),
-);
+echo '===== '.$date_ref->format('d/m/Y H:i:s').' ====='."\n";
 
-for($day = 1; $day <= NB_DAYS; $day++)
-    $names[] = getFilename((clone $date_ref)->sub(new DateInterval('P'.$day.'D')));
-
-for($year = 1; $year <= NB_YEARS; $year++)
-    $names[] = getFilename((clone $date_ref)->sub(new DateInterval('P'.$year.'Y')));
+echo 'Local directory : ' . $args->path . "\n";
+if (!file_exists($args->path) || ! is_dir($args->path)) {
+    if (!mkdir($args->path, 775, true)) {
+        die('Failed to create local directory' . "\n");
+    }
+}
+if (substr($args->path, -1, 1) != DIRECTORY_SEPARATOR)
+    $args->path .= DIRECTORY_SEPARATOR;
 
 /*
- * Nettoyage fichiers
+ * Build filenames list
  */
-echo_p('Nettoyage des fichiers existants');
+try {
+    $names = array(
+        getFilename($date_ref),
+    );
 
-$files = scandir(PHOTO_ROOT);
-$files = array_diff($files, EXCLUDED_FILES);
+    for ($year = 1; $year <= $args->years; $year++) {
+            $names[] = getFilename((clone $date_ref)->sub(new DateInterval('P' . $year . 'Y')));
 
-$restant = array();
-foreach($files as $idx => $file) {
-    echo_p('Fichier '.$file, 1);
-
-    $base = pathinfo($file, PATHINFO_FILENAME);
-    if(!in_array($base, $names)) {
-        echo_p('Suppression', 2);
-        unlink(PHOTO_ROOT.$file);
+        if ($args->square) {
+            for ($day = 1; $day <= $args->days; $day++)
+                $names[] = getFilename((clone $date_ref)->sub(new DateInterval('P' . $year . 'Y' . $day . 'D')));
+        }
     }
-    else
-        $restant[] = $base;
+
+    if (!$args->square) {
+        for ($day = 1; $day <= $args->days; $day++) {
+            $names[] = getFilename((clone $date_ref)->sub(new DateInterval('P' . $day . 'D')));
+        }
+    }
+}
+catch (Exception $e) {
+    die('EXCEPTION '.$e->getMessage()."\n");
 }
 
 /*
- * Téléchargement fichiers manquant
+ * Cleanup old files (except hidden)
  */
-echo_p('Vérification fichiers');
-foreach($names as $name) {
-    echo_p('... '.$name, 1);
-    if(!in_array($name, $restant)) {
+if (!$args->noCleanup) {
+    echo 'Cleanup old files' . "\n";
+
+    $files = scandir($args->path);
+
+    $restant = array();
+    foreach ($files as $idx => $file) {
+        echo '  File : '.$file."\n";
+        if (substr($file, 0, 1) == '.' || $file == THUMBS_FILE) {
+            echo '    Skipped'."\n";
+            continue;
+        }
+
+        $base = pathinfo($file, PATHINFO_FILENAME);
+        if (!in_array($base, $names)) {
+            echo '    Deleted'."\n";
+            unlink($args->path . $file);
+        }
+        else {
+            echo '    Keeped'."\n";
+            $restant[] = $base;
+        }
+    }
+}
+
+/*
+ * (Re)Download files
+ */
+echo 'Download files'."\n";
+
+$nb = 0;
+foreach ($names as $name) {
+    echo '  ... '.$name;
+    if (!in_array($name, $restant) || $args->force) {
         $url = URL_ROOT.$name.'.html';
-        echo_p('Traitement '.$url, 2);
+        echo ' => '.$url."\n";
 
         $html = file_get_contents($url);
-        if($html === false) {
-            echo_p('Échec téléchargement', 3);
+        if ($html === false) {
+            echo '      Failed download HTML'."\n";
             continue;
         }
 
-        if(!preg_match('@<a href="(([^"]+)(?:_[0-9]+)?\.([a-z0-9_]+))">\s*<img src="\2@i', $html, $matches)) {
-            echo_p('HTML incorrect', 3);
+        if (!preg_match('@<a href="(([^"]+)(?:_[0-9]+)?\.([a-z0-9_]+))">\s*<img src="\2@i', $html, $matches)) {
+            echo '      No usable image'."\n";
             continue;
         }
 
-        echo_p('Téléchargement '.$matches[1].' ('.$matches[3].')', 3);
-        file_put_contents(PHOTO_ROOT.$name.'.'.$matches[3], file_get_contents(URL_ROOT.$matches[1]));
+        $out_path = $args->path . $name . '.' . $matches[3];
+        echo '      Download ' . $matches[1] . ' to ' . $out_path . "\n";
+        if (file_put_contents($out_path, file_get_contents(URL_ROOT . $matches[1])) !== false) {
+            $nb++;
+        }
+    }
+    else {
+        echo "\n";
     }
 }
 
-echo_p('Terminé');
+/*
+ * End
+ */
+echo $nb . ' files downloaded'."\n";
