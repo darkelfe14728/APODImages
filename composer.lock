@@ -1,0 +1,62 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "9373699f2b440608267af611baec5690",
+    "packages": [
+        {
+            "name": "darkelfe14728/commandline",
+            "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/darkelfe14728/PhpCommandLine.git",
+                "reference": "429df447dd32c52d423c856fd6350954e0d2d60b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/darkelfe14728/PhpCommandLine/zipball/429df447dd32c52d423c856fd6350954e0d2d60b",
+                "reference": "429df447dd32c52d423c856fd6350954e0d2d60b",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^5.6 || ^7.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "CommandLine\\": "src/CommandLine/"
+                },
+                "exclude-from-classmap": [
+                    "Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "CC-BY-4.0"
+            ],
+            "authors": [
+                {
+                    "name": "Julien Rosset",
+                    "email": "jul.rosset@gmail.com"
+                }
+            ],
+            "description": "Command line management library (CLI)",
+            "homepage": "https://github.com/darkelfe14728/PhpCommandLine",
+            "keywords": [
+                "cli",
+                "parser"
+            ],
+            "time": "2019-09-22T16:16:41+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": [],
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": []
+}

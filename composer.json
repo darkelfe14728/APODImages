@@ -1,0 +1,14 @@
+{
+    "minimum-stability": "stable",
+    "license":           "CC-BY-4.0",
+    "authors":           [
+        {
+            "name":  "Julien Rosset",
+            "email": "jul.rosset@gmail.com"
+        }
+    ],
+
+    "require": {
+        "darkelfe14728/commandline": "^1.0"
+    }
+}
